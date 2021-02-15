@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
 import net.mullvad.mullvadvpn.R
-import net.mullvad.mullvadvpn.applist.AppInfo2
+import net.mullvad.mullvadvpn.applist.AppInfo
 import net.mullvad.mullvadvpn.applist.ApplicationsProvider
 import net.mullvad.mullvadvpn.applist.ViewIntent
 import net.mullvad.mullvadvpn.model.ListItemData
@@ -24,13 +24,13 @@ class SplitTunnelingViewModel(
     private val appsProvider: ApplicationsProvider,
     private val splitTunneling: SplitTunneling
 ) : ViewModel() {
-    private val _data = MutableSharedFlow<List<ListItemData>>(replay = 1)
-    val data = _data.asSharedFlow() // read-only public view
+    private val listItemsSink = MutableSharedFlow<List<ListItemData>>(replay = 1)
+    val listItems = listItemsSink.asSharedFlow() // read-only public view
 
-    private val _intentFlow = MutableSharedFlow<ViewIntent>()
+    private val intentFlow = MutableSharedFlow<ViewIntent>()
 
-    private lateinit var excludedApps: MutableMap<String, AppInfo2>
-    private lateinit var allAps: MutableMap<String, AppInfo2>
+    private lateinit var excludedApps: MutableMap<String, AppInfo>
+    private lateinit var allAps: MutableMap<String, AppInfo>
 
     private val defaultListItems = mutableListOf(
         createTextItem(R.string.split_tunneling_description)
@@ -39,7 +39,7 @@ class SplitTunnelingViewModel(
 
     init {
         viewModelScope.launch(Dispatchers.Default) {
-            _intentFlow.shareIn(viewModelScope, SharingStarted.WhileSubscribed())
+            intentFlow.shareIn(viewModelScope, SharingStarted.WhileSubscribed())
                 .collect { viewIntent ->
                     when (viewIntent) {
                         is ViewIntent.ChangeApplicationGroup -> {
@@ -57,7 +57,7 @@ class SplitTunnelingViewModel(
         }
 
         viewModelScope.launch(Dispatchers.Default) {
-            _data.emit(defaultListItems + createDivider(0) + createProgressItem())
+            listItemsSink.emit(defaultListItems + createDivider(0) + createProgressItem())
         }
         fetchData()
         viewModelScope.launch(Dispatchers.Default) {
@@ -94,16 +94,17 @@ class SplitTunnelingViewModel(
         viewModelScope.launch(Dispatchers.Default) {
             appsProvider.getAppsList().map { it.packageName to it }.toMap().let { applications ->
                 val excludedPackages = applications.keys.intersect(splitTunneling.excludedAppList)
-                // TODO: remove potential package names from splitTunneling list if they already uninstalled or filtered
+                // TODO: remove potential package names from splitTunneling list
+                //       if they already uninstalled or filtered
                 excludedApps = applications
                     .filterKeys { excludedPackages.contains(it) }
                     .toMutableMap()
                 allAps = applications
                     .filterKeys { applications.keys.subtract(excludedPackages).contains(it) }
                     .toMutableMap()
-                delay(100)
-                publishList()
             }
+            delay(100)
+            publishList()
         }
     }
 
@@ -129,7 +130,7 @@ class SplitTunnelingViewModel(
                 }
             )
         }
-        _data.emit(listItems)
+        listItemsSink.emit(listItems)
     }
 
     private fun createApplicationItem(
@@ -137,52 +138,44 @@ class SplitTunnelingViewModel(
         name: String,
         @DrawableRes icon: Int,
         checked: Boolean
-    ): ListItemData = ListItemData.Builder()
-        .setIdentifier(id)
-        .setType(ListItemData.APPLICATION)
-        .setText(name)
-        .setIconRes(icon)
-        .setAction(ListItemData.ItemAction(id))
-        .setWidget(
-            WidgetState.ImageState(
-                if (checked) R.drawable.ic_icons_remove else R.drawable.ic_icons_add
-            )
+    ): ListItemData = ListItemData.build {
+        identifier = id
+        type = ListItemData.APPLICATION
+        text = name
+        iconRes = icon
+        action = ListItemData.ItemAction(id)
+        widget = WidgetState.ImageState(
+            if (checked) R.drawable.ic_icons_remove else R.drawable.ic_icons_add
         )
-        .build()
+    }
 
-    private fun createDivider(id: Int): ListItemData = ListItemData.Builder()
-        .setIdentifier("space_$id")
-        .setType(ListItemData.DIVIDER)
-        .build()
+    private fun createDivider(id: Int): ListItemData = ListItemData.build {
+        identifier = "space_$id"
+        type = ListItemData.DIVIDER
+    }
 
-    private fun createMainItem(@StringRes text: Int): ListItemData = ListItemData.Builder()
-        .setIdentifier("header_$text")
-        .setType(ListItemData.ACTION)
-        .setTextRes(text)
-        .build()
+    private fun createMainItem(@StringRes text: Int): ListItemData = ListItemData.build {
+        identifier = "header_$text"
+        type = ListItemData.ACTION
+        textRes = text
+    }
 
-    private fun createTextItem(@StringRes text: Int): ListItemData = ListItemData.Builder()
-        .setIdentifier("text_$text")
-        .setType(ListItemData.PLAIN)
-        .setTextRes(text)
-        .setAction(ListItemData.ItemAction(text.toString()))
-        .build()
+    private fun createTextItem(@StringRes text: Int): ListItemData = ListItemData.build {
+        identifier = "text_$text"
+        type = ListItemData.PLAIN
+        textRes = text
+        action = ListItemData.ItemAction(text.toString())
+    }
 
-    private fun createProgressItem(): ListItemData = ListItemData.Builder()
-        .setIdentifier("progress")
-        .setType(ListItemData.PROGRESS)
-        .build()
+    private fun createProgressItem(): ListItemData = ListItemData.build {
+        identifier = "progress"
+        type = ListItemData.PROGRESS
+    }
 
-    suspend fun processIntent(intent: ViewIntent) = _intentFlow.emit(intent)
+    suspend fun processIntent(intent: ViewIntent) = intentFlow.emit(intent)
 
     override fun onCleared() {
         splitTunneling.persist()
         super.onCleared()
-    }
-
-    // Represents different states for the LatestNews screen
-    sealed class LatestNewsUiState {
-        data class Success(val news: List<ListItemData>) : LatestNewsUiState()
-        data class Error(val exception: Throwable) : LatestNewsUiState()
     }
 }
