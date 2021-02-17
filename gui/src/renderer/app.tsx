@@ -418,8 +418,10 @@ export default class AppRenderer {
     return IpcRendererEventChannel.splitTunneling.getApplications();
   }
 
-  public launchExcludedApplication(application: ILinuxSplitTunnelingApplication | string) {
-    consumePromise(IpcRendererEventChannel.splitTunneling.launchApplication(application));
+  public launchExcludedApplication(
+    application: ILinuxSplitTunnelingApplication | string,
+  ): Promise<void> {
+    return IpcRendererEventChannel.splitTunneling.launchApplication(application);
   }
 
   public collectProblemReport(toRedact: string[]): Promise<string> {
