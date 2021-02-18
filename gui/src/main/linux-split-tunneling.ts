@@ -28,22 +28,39 @@ const PROBLEMATIC_APPLICATIONS = {
 export async function launchApplication(
   app: ILinuxSplitTunnelingApplication | string,
 ): Promise<void> {
-  let excludeArguments: string[] | undefined;
+  const excludeArguments = await getLaunchCommand(app);
+  if (excludeArguments.length > 0) {
+    return new Promise((resolve, reject) => {
+      const proc = child_process.spawn('mullvad-exclude', excludeArguments, { detached: true });
+      proc.once('exit', (code: number) => {
+        if (code === 1) {
+          reject('Failed to start application');
+        } else {
+          resolve();
+        }
+      });
+      setTimeout(() => {
+        proc.removeAllListeners();
+        resolve();
+      }, 1000);
+    });
+  } else {
+    throw new Error('Invalid application');
+  }
+}
+
+async function getLaunchCommand(app: ILinuxSplitTunnelingApplication | string): Promise<string[]> {
   if (typeof app === 'object') {
-    excludeArguments = formatExec(app.exec);
+    return formatExec(app.exec);
   } else if (path.extname(app) === '.desktop') {
     const entry = await readDesktopEntry(app);
     if (entry.exec !== undefined) {
-      excludeArguments = formatExec(entry.exec);
+      return formatExec(entry.exec);
+    } else {
+      throw new Error('Desktop file lacks exec property');
     }
   } else {
-    excludeArguments = [app];
-  }
-
-  if (excludeArguments !== undefined && excludeArguments.length > 0) {
-    child_process.spawn('mullvad-exclude', excludeArguments, { detached: true });
-  } else {
-    throw new Error('Invalid application');
+    return [app];
   }
 }
 
