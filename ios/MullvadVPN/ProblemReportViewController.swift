@@ -154,6 +154,8 @@ class ProblemReportViewController: UIViewController, UITextFieldDelegate, Condit
         return makeKeyboardToolbar(canGoBackward: true, canGoForward: false)
     }()
 
+    // MARK: - View lifecycle
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -203,7 +205,7 @@ class ProblemReportViewController: UIViewController, UITextFieldDelegate, Condit
     }
 
     @objc func handleSendButtonTap() {
-        // TODO: implement
+        showSubmissionOverlay()
     }
 
     @objc func handleViewLogsButtonTap() {
@@ -432,6 +434,40 @@ class ProblemReportViewController: UIViewController, UITextFieldDelegate, Condit
     private func animateDescriptionTextView(animations: @escaping () -> Void, completion: @escaping (Bool) -> Void) {
         UIView.animate(withDuration: 0.25, animations: animations) { (completed) in
             completion(completed)
+        }
+    }
+
+    struct TestError: LocalizedError {
+        var errorDescription: String? {
+            return "Something went wrong..."
+        }
+    }
+
+    private func showSubmissionOverlay() {
+        let overlay = ProblemReportSubmissionOverlayView()
+        overlay.editButtonAction = { [weak self] in
+
+        }
+
+        overlay.retryButtonAction = { [weak self] in
+
+        }
+
+//        overlay.state = .sent("and@mullvad.net")
+        overlay.state = .failure(TestError())
+
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(overlay)
+
+        NSLayoutConstraint.activate([
+            overlay.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            overlay.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
+            overlay.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
+            overlay.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+        ])
+
+        UIView.transition(from: self.scrollView, to: overlay, duration: 0.25, options: [.showHideTransitionViews, .transitionCrossDissolve]) { (success) in
+            // success
         }
     }
 
